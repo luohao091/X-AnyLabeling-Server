@@ -73,6 +73,9 @@ uv pip install -e .[all]
 > [!TIP]
 > If you're new to X-AnyLabeling-Server, we recommend using **Option 2** to install all dependencies so you can run the demo models out of the box. If you only plan to deploy your own custom models without these examples, **Option 1** is sufficient.
 
+> [!NOTE]
+> If you want to run the `sam3` service stably, make sure you are using Python 3.12 or higher, PyTorch 2.7 or higher, and a CUDA-compatible GPU with CUDA 12.6 or higher.
+
 After installation, you can quickly start the service with the following command:
 
 ```bash

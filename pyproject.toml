@@ -52,9 +52,25 @@ transformers = [
     "accelerate",
 ]
 
+sam3 = [
+    "decord",
+    "einops",
+    "ftfy==6.1.1",
+    "huggingface_hub",
+    "iopath>=0.1.10",
+    "numpy>=1.26",
+    "pandas",
+    "pycocotools",
+    "scikit-image",
+    "scikit-learn",
+    "timm>=1.0.17",
+    "typing_extensions",
+    "torch>=2.7.0",
+]
+
 # All optional dependencies
 all = [
-    "x-anylabeling-server[dev,ultralytics,transformers]",
+    "x-anylabeling-server[dev,ultralytics,transformers,sam3]",
 ]
 
 [project.urls]

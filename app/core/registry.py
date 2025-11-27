@@ -37,6 +37,7 @@ class ModelRegistry:
         from app.models.yolo11n_obb import YOLO11nOBB
         from app.models.yolo11n_track import YOLO11nDetectionTrack
         from app.models.qwen3vl import Qwen3VL
+        from app.models.segment_anything_3 import SegmentAnything3
 
         return {
             "yolo11n": YOLO11nDetection,
@@ -48,6 +49,7 @@ class ModelRegistry:
             "qwen3vl_caption_transformers": Qwen3VL,
             "qwen3vl_grounding_transformers": Qwen3VL,
             "qwen3vl_grounding_api": Qwen3VL,
+            "segment_anything_3": SegmentAnything3,
         }
 
     def _read_models_config(self) -> Dict:
@@ -177,20 +179,27 @@ class ModelRegistry:
                 configs.append(config)
             except Exception as e:
                 logger.error(f"Failed to read config for [{model_id}]: {e}")
-                raise
+                continue
 
-        self._validate_configs(configs)
+        if configs:
+            try:
+                self._validate_configs(configs)
+            except Exception as e:
+                logger.error(f"Configuration validation failed: {e}")
 
         for model_id in enabled:
             try:
                 self._load_single_model(model_id)
             except Exception as e:
                 logger.error(f"Failed to load model [{model_id}]: {e}")
-                raise
+                continue
 
-        logger.info(
-            f"Successfully loaded {len(self.models)}/{len(enabled)} model(s)"
-        )
+        if len(self.models) == 0:
+            logger.warning("No models were successfully loaded")
+        else:
+            logger.info(
+                f"Successfully loaded {len(self.models)}/{len(enabled)} model(s)"
+            )
 
     def _load_single_model(self, model_id: str):
         """Load a single model.

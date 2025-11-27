@@ -40,8 +40,9 @@ async def lifespan(app: FastAPI):
     try:
         loader.load_all_models()
     except Exception as e:
-        logger.critical(f"Failed to load models: {e}")
-        raise
+        logger.error(f"Error during model loading: {e}")
+        if len(loader.models) == 0:
+            logger.warning("No models loaded, but continuing server startup")
 
     inference_executor = InferenceExecutor(
         loader=loader,
