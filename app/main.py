@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from app import __version__
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.middleware import (
@@ -61,7 +62,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="X-AnyLabeling Server",
     description="AI Model Inference Service for X-AnyLabeling",
-    version="0.0.1",
+    version=str(__version__),
     lifespan=lifespan,
 )
 
