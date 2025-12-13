@@ -33,7 +33,9 @@ def check_for_updates_async(callback=None, timeout=10):
                 latest_version = data["tag_name"].lstrip("v")
                 current_version = __version__
 
-                if version.parse(latest_version) > version.parse(current_version):
+                if version.parse(latest_version) > version.parse(
+                    current_version
+                ):
                     update_info = {
                         "has_update": True,
                         "current_version": current_version,

@@ -172,25 +172,27 @@ class GLM46V(BaseModel):
         """Extract JSON content from GLM response with markers."""
         begin_marker = "<|begin_of_box|>"
         end_marker = "<|end_of_box|>"
-        
+
         begin_idx = response.find(begin_marker)
         end_idx = response.find(end_marker)
-        
+
         if begin_idx != -1 and end_idx != -1:
-            json_content = response[begin_idx + len(begin_marker) : end_idx].strip()
+            json_content = response[
+                begin_idx + len(begin_marker) : end_idx
+            ].strip()
             return json_content
-        
+
         pattern = r'\[\s*\{[^}]*"label"[^}]*"bbox_2d"[^}]*\}(?:\s*,\s*\{[^}]*"label"[^}]*"bbox_2d"[^}]*\})*\s*\]'
         match = re.search(pattern, response, re.DOTALL)
         if match:
             return match.group(0)
-        
+
         bracket_start = response.find('[')
         if bracket_start != -1:
             bracket_end = response.rfind(']')
             if bracket_end != -1 and bracket_end > bracket_start:
                 return response[bracket_start : bracket_end + 1]
-        
+
         return response.strip()
 
     def _parse_grounding_response(
@@ -201,7 +203,7 @@ class GLM46V(BaseModel):
         height, width = image_shape[:2]
 
         logger.info(f"response: {response}")
-        
+
         json_content = self._extract_json_from_response(response)
         json_content = self._parse_json(json_content)
 
