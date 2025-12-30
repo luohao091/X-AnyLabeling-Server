@@ -23,8 +23,11 @@ class VideoPromptRequest(BaseModel):
 
     session_id: str
     model: str
-    text_prompt: str
+    text_prompt: Optional[str] = None
     frame_index: int = 0
+    points: Optional[List[List[float]]] = None
+    point_labels: Optional[List[int]] = None
+    obj_id: Optional[int] = None
     params: Dict[str, Any] = {}
 
 

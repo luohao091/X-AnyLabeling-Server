@@ -51,6 +51,7 @@ class _VideoSession:
         self.start_frame_index = start_frame_index
         self.predictor = predictor
         self.text_prompt: Optional[str] = None
+        self.is_point_prompt: bool = False
         self.last_prompt_frame: Optional[int] = None
         self.prompt_frame_outputs: Optional[Dict[str, Any]] = None
         self.prompt_frame_params: Optional[Dict[str, Any]] = None
@@ -343,6 +344,188 @@ class SegmentAnything3Video(BaseModel):
             "num_objects": len(shapes),
         }
 
+    def add_point_prompt(
+        self,
+        session_id: str,
+        points: List[List[float]],
+        point_labels: List[int],
+        obj_id: Optional[int],
+        frame_index: int,
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Add point prompt to a video frame.
+
+        Args:
+            session_id: Session identifier.
+            points: List of point coordinates in relative format (N, 2).
+            point_labels: List of point labels (1 for positive, 0 for negative).
+            obj_id: Object ID for the prompt.
+            frame_index: Frame index to add prompt to.
+            params: Additional parameters (conf_threshold, show_boxes, etc.).
+
+        Returns:
+            Dictionary with frame_index, masks list, and num_objects.
+        """
+        session = self._get_session(session_id)
+        if not session:
+            return {"error": f"Session {session_id} not found"}
+
+        relative_frame_index = frame_index - session.start_frame_index
+        if relative_frame_index < 0 or relative_frame_index >= len(
+            session.frames
+        ):
+            return {"error": f"Frame index {frame_index} out of range"}
+
+        if not points or not point_labels:
+            return {"error": "Points and point_labels are required"}
+
+        if len(points) != len(point_labels):
+            return {"error": "Points and point_labels must have same length"}
+
+        if obj_id is None:
+            obj_id = 99999
+
+        try:
+            predictor_session = session.predictor._get_session(session_id)
+            inference_state = predictor_session["state"]
+            if (
+                "cached_frame_outputs" not in inference_state
+                or relative_frame_index
+                not in inference_state["cached_frame_outputs"]
+            ):
+                if "cached_frame_outputs" not in inference_state:
+                    inference_state["cached_frame_outputs"] = {}
+                inference_state["cached_frame_outputs"][
+                    relative_frame_index
+                ] = {}
+        except (AttributeError, RuntimeError, KeyError) as e:
+            logger.warning(
+                f"Could not initialize cache for frame {relative_frame_index}: {e}"
+            )
+
+        response = session.predictor.handle_request(
+            request=dict(
+                type="add_prompt",
+                session_id=session_id,
+                frame_index=relative_frame_index,
+                points=points,
+                point_labels=point_labels,
+                obj_id=obj_id,
+            )
+        )
+
+        outputs = response.get("outputs", {})
+        if not isinstance(outputs, dict):
+            logger.error(f"Unexpected outputs format: {type(outputs)}")
+            return {"error": f"Unexpected outputs format: {type(outputs)}"}
+
+        out_binary_masks = outputs.get("out_binary_masks", [])
+        out_probs = outputs.get("out_probs", [])
+        out_obj_ids = self._normalize_obj_ids(outputs.get("out_obj_ids", []))
+        out_boxes_xywh = outputs.get("out_boxes_xywh", [])
+
+        if len(out_binary_masks) == 0:
+            logger.warning("No masks returned from video point prompt")
+            return {"frame_index": frame_index, "masks": [], "num_objects": 0}
+
+        try:
+            predictor_session = session.predictor._get_session(session_id)
+            inference_state = predictor_session["state"]
+            if "cached_frame_outputs" not in inference_state:
+                inference_state["cached_frame_outputs"] = {}
+
+            num_frames = len(session.frames)
+            obj_id_to_mask = {}
+
+            if len(out_obj_ids) > 0:
+                import torch
+                import torch.nn.functional as F
+
+                H_video = inference_state.get(
+                    "orig_height", session.frames[0].shape[0]
+                )
+                W_video = inference_state.get(
+                    "orig_width", session.frames[0].shape[1]
+                )
+
+                for i, obj_id in enumerate(out_obj_ids):
+                    obj_id_int = (
+                        int(obj_id) if hasattr(obj_id, '__int__') else obj_id
+                    )
+                    if i < len(out_binary_masks):
+                        mask = out_binary_masks[i]
+                        if isinstance(mask, np.ndarray):
+                            mask_tensor = torch.from_numpy(mask).float()
+                        elif isinstance(mask, torch.Tensor):
+                            mask_tensor = mask.float()
+                        else:
+                            mask_tensor = torch.tensor(
+                                mask, dtype=torch.float32
+                            )
+
+                        if mask_tensor.dim() == 2:
+                            mask_tensor = mask_tensor.unsqueeze(0).unsqueeze(0)
+                        elif mask_tensor.dim() == 3:
+                            mask_tensor = mask_tensor.unsqueeze(0)
+
+                        if mask_tensor.shape[-2:] != (H_video, W_video):
+                            mask_tensor = F.interpolate(
+                                mask_tensor,
+                                size=(H_video, W_video),
+                                mode="bilinear",
+                                align_corners=False,
+                            )
+
+                        mask_bool = mask_tensor.squeeze() > 0.0
+                        if isinstance(mask_bool, torch.Tensor):
+                            mask_bool = mask_bool.to(torch.bool)
+                        obj_id_to_mask[obj_id_int] = mask_bool
+
+            for fidx in range(num_frames):
+                if fidx not in inference_state["cached_frame_outputs"]:
+                    inference_state["cached_frame_outputs"][
+                        fidx
+                    ] = obj_id_to_mask.copy()
+                else:
+                    inference_state["cached_frame_outputs"][fidx].update(
+                        obj_id_to_mask
+                    )
+        except (AttributeError, RuntimeError, KeyError, Exception) as e:
+            logger.warning(f"Could not initialize cache for all frames: {e}")
+
+        session.is_point_prompt = True
+        session.last_prompt_frame = frame_index
+        session.prompt_frame_outputs = {
+            "out_binary_masks": out_binary_masks,
+            "out_probs": out_probs,
+            "out_obj_ids": out_obj_ids,
+            "out_boxes_xywh": out_boxes_xywh,
+        }
+        session.prompt_frame_params = params.copy()
+
+        inference_params = self._get_inference_params(params)
+        orig_height, orig_width = self._get_frame_dimensions(session.frames)
+
+        shapes = self._convert_outputs_to_shapes(
+            out_binary_masks,
+            out_probs,
+            out_obj_ids,
+            out_boxes_xywh,
+            "AUTOLABEL_OBJECT",
+            inference_params["conf_threshold"],
+            inference_params["show_boxes"],
+            inference_params["show_masks"],
+            inference_params["epsilon_factor"],
+            orig_width,
+            orig_height,
+        )
+
+        return {
+            "frame_index": frame_index,
+            "masks": shapes,
+            "num_objects": len(shapes),
+        }
+
     def start_propagation(
         self,
         session_id: str,
@@ -363,8 +546,8 @@ class SegmentAnything3Video(BaseModel):
         if not session:
             return {"error": f"Session {session_id} not found"}
 
-        if not session.text_prompt:
-            return {"error": "No text prompt set for session"}
+        if not session.text_prompt and not session.is_point_prompt:
+            return {"error": "No text prompt or point prompt set for session"}
 
         if start_frame is not None:
             start_frame = start_frame - session.start_frame_index
@@ -483,10 +666,10 @@ class SegmentAnything3Video(BaseModel):
             }
             return
 
-        if not session.text_prompt:
+        if not session.text_prompt and not session.is_point_prompt:
             yield {
                 "type": "error",
-                "message": "No text prompt set for session",
+                "message": "No text prompt or point prompt set for session",
             }
             return
 
@@ -500,7 +683,9 @@ class SegmentAnything3Video(BaseModel):
         total_frames = len(session.frames)
         start_frame_offset = session.start_frame_index
         orig_height, orig_width = self._get_frame_dimensions(session.frames)
-        text_prompt = session.text_prompt
+        text_prompt = (
+            session.text_prompt if session.text_prompt else "AUTOLABEL_OBJECT"
+        )
 
         yield {
             "type": "started",
@@ -1020,7 +1205,11 @@ class SegmentAnything3Video(BaseModel):
             except (IndexError, TypeError, ValueError):
                 score = 1.0
 
-            label = text_prompt if text_prompt else "AUTOLABEL_OBJECT"
+            if text_prompt:
+                label = text_prompt
+            else:
+                label = "AUTOLABEL_OBJECT"
+                score = None
 
             mask = out_binary_masks[i]
             if isinstance(mask, np.ndarray):

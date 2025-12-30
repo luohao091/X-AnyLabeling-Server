@@ -1,6 +1,7 @@
 model_id: segment_anything_3_video
 display_name: "Segment Anything 3 Video"
 batch_processing_mode: "video"
+auto_clear_cache_label_and_gid: True
 
 params:
   bpe_path: "bpe_simple_vocab_16e6.txt.gz"
@@ -12,6 +13,14 @@ params:
   epsilon_factor: 0.001
 
 widgets:
+  - name: button_add_point
+    value: null
+  - name: button_remove_point
+    value: null
+  - name: button_clear
+    value: null
+  - name: button_finish_object
+    value: null
   - name: edit_text
     value: null
   - name: button_send

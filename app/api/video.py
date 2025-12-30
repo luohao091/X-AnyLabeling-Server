@@ -104,10 +104,10 @@ async def init_video_session(request: VideoInitRequest):
 
 @router.post("/v1/video/prompt")
 async def prompt_video_frame(request: VideoPromptRequest):
-    """Add text prompt to a video frame.
+    """Add text or point prompt to a video frame.
 
     Args:
-        request: Request containing session_id, text_prompt, frame_index, and params.
+        request: Request containing session_id, text_prompt or points, frame_index, and params.
 
     Returns:
         Success response with masks or error response.
@@ -117,6 +117,9 @@ async def prompt_video_frame(request: VideoPromptRequest):
     session_id = request.session_id
     model_id = request.model
     text_prompt = request.text_prompt
+    points = request.points
+    point_labels = request.point_labels
+    obj_id = request.obj_id
     frame_index = request.frame_index
     params = request.params
 
@@ -127,10 +130,11 @@ async def prompt_video_frame(request: VideoPromptRequest):
             )
         )
 
-    if not text_prompt:
+    if not text_prompt and not points:
         return ErrorResponse(
             error=ErrorDetail(
-                code="MISSING_PROMPT", message="Text prompt is required"
+                code="MISSING_PROMPT",
+                message="Text prompt or points are required",
             )
         )
 
@@ -150,7 +154,14 @@ async def prompt_video_frame(request: VideoPromptRequest):
         )
 
     try:
-        result = model.add_prompt(session_id, text_prompt, frame_index, params)
+        if text_prompt:
+            result = model.add_prompt(
+                session_id, text_prompt, frame_index, params
+            )
+        else:
+            result = model.add_point_prompt(
+                session_id, points, point_labels, obj_id, frame_index, params
+            )
 
         if "error" in result:
             return ErrorResponse(
