@@ -1,3 +1,15 @@
+## `v0.0.6` (Jan 22, 2026)
+
+### 🚀 New Features
+
+- Add Rex-Omni, supporting text grounding, keypoints, ocr, refer pointing and visual prompts
+
+### 🌟 Contributors
+
+A total of 1 developer contributed to this release.
+
+Thank @CVHub520
+
 ## `v0.0.5` (Dec 31, 2025)
 
 ### 🚀 New Features
