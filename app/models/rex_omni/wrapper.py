@@ -81,6 +81,7 @@ class RexOmniWrapper:
         """Initialize model and processor based on backend type"""
         print(f"Initializing {self.backend} backend...")
 
+        attn_implementation=kwargs.get("attn_implementation", None)
         if self.backend == "vllm":
             from transformers import AutoProcessor
             from vllm import LLM, SamplingParams
@@ -122,8 +123,9 @@ class RexOmniWrapper:
                 max_pixels=self.max_pixels,
             )
 
-            # Set padding side to left for batch inference with Flash Attention
-            self.processor.tokenizer.padding_side = "left"
+            if attn_implementation:
+                # Set padding side to left for batch inference with Flash Attention
+                self.processor.tokenizer.padding_side = "left"
 
             # Set up sampling parameters
             self.sampling_params = SamplingParams(
@@ -149,7 +151,7 @@ class RexOmniWrapper:
             self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                 self.model_path,
                 torch_dtype=kwargs.get("torch_dtype", torch.bfloat16),
-                attn_implementation=kwargs.get("attn_implementation", None),
+                attn_implementation=attn_implementation,
                 device_map=kwargs.get("device_map", "auto"),
                 trust_remote_code=kwargs.get("trust_remote_code", True),
                 **{
@@ -173,8 +175,9 @@ class RexOmniWrapper:
                 use_fast=False,
             )
 
-            # Set padding side to left for batch inference with Flash Attention
-            self.processor.tokenizer.padding_side = "left"
+            if attn_implementation:
+                # Set padding side to left for batch inference with Flash Attention
+                self.processor.tokenizer.padding_side = "left"
 
             self.model_type = "transformers"
 
