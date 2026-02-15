@@ -238,8 +238,11 @@ class RexOmni(BaseModel):
             else:
                 categories = ["text line"]
             return self._predict_ocr_box(pil_image, categories)
-        elif task == "ocr_polygon_text_line":
-            categories = ["text line"]
+        elif task in ["ocr_polygon_word", "ocr_polygon_text_line"]:
+            if task == "ocr_polygon_word":
+                categories = ["word"]
+            else:
+                categories = ["text line"]
             return self._predict_ocr_polygon(pil_image, categories)
         elif task == "pointing":
             return self._predict_pointing(pil_image, text_prompt)
@@ -356,7 +359,7 @@ class RexOmni(BaseModel):
         result = results[0]
         extracted = result.get("extracted_predictions", {})
         shapes = self._convert_ocr_to_shapes(
-            extracted, categories, shape_type="polygon"
+            extracted, categories, shape_type="quadrilateral"
         )
 
         return {"shapes": shapes, "description": ""}
@@ -555,13 +558,13 @@ class RexOmni(BaseModel):
                             description=text,
                         )
                         shapes.append(shape)
-                elif ann_type == "polygon" and shape_type == "polygon":
+                elif ann_type == "polygon" and shape_type == "quadrilateral":
                     if len(coords) >= 3:
                         points = [[float(p[0]), float(p[1])] for p in coords]
                         text = ann.get("text", category)
                         shape = Shape(
                             label=categories[0],
-                            shape_type="polygon",
+                            shape_type="quadrilateral",
                             points=points,
                             description=text,
                         )
