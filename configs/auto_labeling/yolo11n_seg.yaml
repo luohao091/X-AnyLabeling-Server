@@ -11,6 +11,8 @@ params:
 widgets:
   - name: button_run
     value: null
+  - name: button_classes_filter
+    value: null
   - name: input_conf
     value: null
   - name: edit_conf
