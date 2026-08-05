@@ -66,7 +66,8 @@ If you use this software in your research, please cite it as below:
   publisher = {Github},
   organization = {CVHub},
   journal = {Github repository},
-  title = {Advanced Auto Labeling Solution with Added Features},
+  title = {X-AnyLabeling: A Unified Desktop Platform for AI-Assisted Data Annotation
+},
   howpublished = {\url{https://github.com/CVHub520/X-AnyLabeling}}
 }
 ```
